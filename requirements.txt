@@ -1,0 +1,25 @@
+# Data engineering
+pandas
+numpy
+requests
+python-dotenv
+SQLAlchemy
+psycopg2-binary
+
+# Makes requests/urllib3 trust the Windows certificate store, not just
+# certifi's bundle. Needed on this machine because something (AV or
+# network) does TLS inspection with a root cert that's only in the
+# Windows store. Safe to keep even if that stops being true.
+pip-system-certs
+
+# Machine learning (added when we get to Model 3+)
+# scikit-learn
+# xgboost
+
+# Backend (added when we get to the API step)
+# fastapi
+# uvicorn
+# pydantic
+
+# Testing
+pytest
