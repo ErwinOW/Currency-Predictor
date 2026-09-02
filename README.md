@@ -19,7 +19,7 @@ widening to more data sources.
 - [x] Project scaffold
 - [x] PostgreSQL running (Docker Compose)
 - [x] Exchange-rate ingestion working end-to-end (2,988 daily MYR/IDR rows loaded, 2014-12-31 → present)
-- [ ] Feature engineering
+- [x] Feature engineering (9 price-based features, 26,771 values in the `features` table)
 - [ ] Baseline models (naive → linear → random forest → XGBoost)
 - [ ] Backtesting
 - [ ] FastAPI
@@ -71,6 +71,19 @@ python ingestion/fetch_exchange_rates.py --start 2015-01-01
 This fetches daily MYR/IDR rates, saves the raw response to
 `data/raw/exchange_rates/`, validates it, and upserts it into the
 `exchange_rates` table in Postgres.
+
+### 5. Run feature engineering
+
+```bash
+python etl/feature_engineering.py
+```
+
+Reads `exchange_rates`, computes 9 price-based features (returns, moving
+averages, volatility, momentum — see the docstring in
+`etl/feature_engineering.py` for the full list and definitions), and
+upserts them into the `features` table, long-form (one row per
+date/feature). Every feature is backward-looking only — no future
+information leaks into a given day's row (§10).
 
 ## Project layout
 
