@@ -17,8 +17,8 @@ Building the walking skeleton: exchange-rate ingestion → PostgreSQL, before
 widening to more data sources.
 
 - [x] Project scaffold
-- [ ] PostgreSQL running (needs Docker Desktop — see below)
-- [ ] Exchange-rate ingestion working end-to-end
+- [x] PostgreSQL running (Docker Compose)
+- [x] Exchange-rate ingestion working end-to-end (2,988 daily USD/MYR rows loaded, 2014-12-31 → present)
 - [ ] Feature engineering
 - [ ] Baseline models (naive → linear → random forest → XGBoost)
 - [ ] Backtesting
@@ -44,6 +44,13 @@ needed — see `.env.example` for the full list of variables.
 ### 3. Database (PostgreSQL via Docker)
 
 Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+
+> On this machine Docker Desktop installed to
+> `%LOCALAPPDATA%\Programs\DockerDesktop` (user-local, not `Program Files`)
+> and its `resources\bin` folder isn't on PATH by default. If `docker` isn't
+> found, add it to PATH or call it with the full path — the credential
+> helper (`docker-credential-desktop.exe`) also lives there and is needed
+> for `docker compose up` to pull images.
 
 ```bash
 docker compose up -d
