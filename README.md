@@ -9,7 +9,7 @@ Full project spec: [docs/project_rundown.md](docs/project_rundown.md).
 This is a portfolio project — see §29 of the spec for limitations and
 intent. Not a trading system.
 
-**First target:** USD/MYR only, 4–6 week build.
+**First target:** IDR/MYR only, 4–6 week build.
 
 ## Status
 
@@ -18,7 +18,7 @@ widening to more data sources.
 
 - [x] Project scaffold
 - [x] PostgreSQL running (Docker Compose)
-- [x] Exchange-rate ingestion working end-to-end (2,988 daily USD/MYR rows loaded, 2014-12-31 → present)
+- [x] Exchange-rate ingestion working end-to-end (2,988 daily IDR/MYR rows loaded, 2014-12-31 → present)
 - [ ] Feature engineering
 - [ ] Baseline models (naive → linear → random forest → XGBoost)
 - [ ] Backtesting
@@ -68,7 +68,7 @@ docker exec -i currency_predictor_db psql -U currency_app -d currency_predictor 
 python ingestion/fetch_exchange_rates.py --start 2015-01-01
 ```
 
-This fetches daily USD/MYR rates, saves the raw response to
+This fetches daily IDR/MYR rates, saves the raw response to
 `data/raw/exchange_rates/`, validates it, and upserts it into the
 `exchange_rates` table in Postgres.
 
