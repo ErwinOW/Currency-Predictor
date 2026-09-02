@@ -1,4 +1,4 @@
-"""Step 1 walking-skeleton ingestion script: IDR/MYR historical exchange rates.
+"""Step 1 walking-skeleton ingestion script: MYR/IDR historical exchange rates.
 
 Pipeline (per docs/project_rundown.md §6):
     API -> validate -> save raw -> transform -> PostgreSQL
@@ -26,8 +26,8 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 from db.connection import get_engine
 
 BASE_URL = "https://api.frankfurter.dev/v1/{start}..{end}"
-FROM_CCY = "IDR"
-TO_CCY = "MYR"
+FROM_CCY = "MYR"
+TO_CCY = "IDR"
 CURRENCY_PAIR = f"{FROM_CCY}/{TO_CCY}"
 RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw" / "exchange_rates"
 
@@ -41,7 +41,7 @@ def fetch(start: str, end: str) -> dict:
 
 def save_raw(payload: dict, start: str, end: str) -> Path:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = RAW_DIR / f"idrmyr_{start}_{end}.json"
+    out_path = RAW_DIR / f"myridr_{start}_{end}.json"
     out_path.write_text(json.dumps(payload, indent=2))
     return out_path
 
@@ -66,10 +66,10 @@ def validate(df: pd.DataFrame) -> pd.DataFrame:
     before = len(df)
     df = df.drop_duplicates(subset="date")
     df = df.dropna(subset=["close"])
-    # IDR/MYR has historically traded roughly between 0.00022 and 0.00034
+    # MYR/IDR has historically traded roughly between 2,941 and 4,545
     # (2015-2026) — a value outside a wide sanity band is more likely a
     # data error than a real rate.
-    df = df[(df["close"] > 0.00015) & (df["close"] < 0.00045)]
+    df = df[(df["close"] > 2000) & (df["close"] < 6000)]
     after = len(df)
     if after < before:
         print(f"  validation dropped {before - after} row(s)")
