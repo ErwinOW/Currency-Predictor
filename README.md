@@ -26,6 +26,7 @@ widening to more data sources.
 - [ ] Backtesting
 - [ ] FastAPI
 - [ ] React dashboard
+- [x] Tests for feature engineering and backtest scoring (`pytest`)
 - [ ] Automation (scheduler)
 
 ## Setup
@@ -87,6 +88,17 @@ upserts them into the `features` table, long-form (one row per
 date/feature). Every feature is backward-looking only — no future
 information leaks into a given day's row (§10).
 
+### 6. Run the tests
+
+```bash
+pytest
+```
+
+Checks the feature math against hand-calculated examples (e.g. that a
+100 → 110 move really computes as a 10% return) and that the no-leakage
+rule actually holds (changing tomorrow's price must not change today's
+features), plus the backtest scoring functions.
+
 ## Project layout
 
 ```
@@ -99,4 +111,5 @@ data/raw/    raw API responses, kept for reproducibility (§8)
 data/processed/  engineered feature tables
 models/      trained model artifacts
 docs/        project rundown + any design notes
+tests/       pytest tests for etl/ and ml/
 ```
