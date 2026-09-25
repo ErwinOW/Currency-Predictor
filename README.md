@@ -13,8 +13,9 @@ intent. Not a trading system.
 
 ## Status
 
-Building the walking skeleton: exchange-rate ingestion → PostgreSQL, before
-widening to more data sources.
+The data pipeline (ingestion → PostgreSQL → features) and a working model
+ladder with walk-forward backtesting are done. Next up is either another
+data source (commodities, news sentiment) or XGBoost, then the API/UI.
 
 - [x] Project scaffold
 - [x] PostgreSQL running (Docker Compose)
@@ -24,12 +25,31 @@ widening to more data sources.
 - [x] Walk-forward backtest harness + naive baselines (`python ml/backtest.py`)
 - [x] Moving average + linear regression (in `ml/models.py`)
 - [x] Random forest (in `ml/models.py`, `RF_FEATURE_COLUMNS` — first model to beat naive on every metric)
+- [x] Tests for feature engineering, backtest scoring, interest-rate alignment, and the random forest (`pytest` — 14 passing)
 - [ ] Models: XGBoost
-- [ ] Backtesting
+- [ ] Commodity and/or news-sentiment data (§4.7, §4.9)
 - [ ] FastAPI
 - [ ] React dashboard
-- [x] Tests for feature engineering and backtest scoring (`pytest`)
 - [ ] Automation (scheduler)
+
+### Current model results (walk-forward backtest, 2022–2026)
+
+| Model | MAE (IDR) | RMSE (IDR) | Directional accuracy |
+|---|---|---|---|
+| Naive (tomorrow = today) | 10.11 | 13.78 | n/a |
+| Linear regression | 10.12 | 13.81 | 51.7% |
+| **Random forest** | **10.09** | **13.76** | **52.8%** |
+| Moving average (7-day) | 16.97 | 22.76 | 51.3% |
+| Naive momentum | 14.65 | 19.88 | 48.5% |
+
+Random forest is currently the best model, but only marginally ahead of
+just guessing "no change." Its `feature_importances_` show why: the
+interest-rate features are ~4% of its total importance combined — OPR/BI
+rates only change a few times a year, so there's little new signal in them
+for a 1-day-ahead prediction. Daily FX moves are close to a random walk;
+beating that meaningfully likely needs a data source that actually moves
+day-to-day, which is why commodities or news sentiment are the natural
+next step rather than a fancier model on the same inputs.
 
 ## Setup
 
@@ -117,7 +137,18 @@ pytest
 Checks the feature math against hand-calculated examples (e.g. that a
 100 → 110 move really computes as a 10% return) and that the no-leakage
 rule actually holds (changing tomorrow's price must not change today's
-features), plus the backtest scoring functions.
+features), plus the backtest scoring and random-forest functions.
+
+### 8. Run the model backtest
+
+```bash
+python ml/backtest.py
+```
+
+Trains and walk-forward-tests every model (naive, moving average, linear
+regression, random forest) on the same folds and prints MAE/RMSE/
+directional accuracy per year and overall — see "Current model results"
+above for the latest numbers.
 
 ## Project layout
 
@@ -133,3 +164,61 @@ models/      trained model artifacts
 docs/        project rundown + any design notes
 tests/       pytest tests for etl/ and ml/
 ```
+
+## Learning notes
+
+This project doubles as a hands-on way to learn data engineering and ML,
+not just a finished deliverable — this section is a running log of what
+each step actually taught, kept for the portfolio and as a personal
+reference.
+
+**Data engineering**
+- Pulling data from real APIs and handling their quirks: pagination-free
+  REST calls, a genuine duplicate-row bug in Bank Negara Malaysia's own
+  API (caught by validation, not assumed away)
+- Idempotent loading with `INSERT ... ON CONFLICT ... DO UPDATE` (upserts)
+  so re-running an ingestion script is always safe
+- Keeping raw API responses on disk separately from the processed
+  database, for reproducibility
+- Secrets management: API keys in a gitignored `.env`, never in code or
+  in git history
+- Running a local service (Postgres) in Docker instead of installing it
+  system-wide
+
+**Time-series / ML fundamentals**
+- The no-data-leakage rule (§10): a feature for day *t* may only use
+  information available by day *t*. Enforced with `shift()`/`rolling()`
+  (price features) and `pandas.merge_asof(direction="backward")`
+  (interest-rate alignment) — and *proven*, not just asserted, with a
+  dedicated test in each case that mutates a future value and checks
+  nothing earlier changes
+- Walk-forward validation instead of a random train/test split, because
+  shuffling time-series data lets the model "see the future" during
+  training
+- Predicting *returns* rather than raw price levels, so the model's
+  target stays in a similar range across years
+- A model ladder that starts from a trivial baseline (naive: "tomorrow =
+  today") specifically so every fancier model has a real number to beat
+- Overfitting, made concrete: an unconstrained decision tree can
+  memorize individual training rows; `max_depth` and `min_samples_leaf`
+  are direct dials against that risk
+- `feature_importances_` as a way to check *why* a model performs the
+  way it does, not just *how well* — used to notice the interest-rate
+  features barely mattered for a 1-day-ahead target
+
+**Python, learned by debugging real errors**
+- Code after a `raise` never executes in that function
+- Positional arguments can't follow keyword arguments in a call
+  (`f(x=1, y)` is a `SyntaxError`)
+- `NameError` means a name was used with no value ever assigned to it
+- `thing.method = (...)` overwrites the method itself; `thing.method(...)`
+  calls it — the parentheses aren't optional
+- Reading a traceback from the bottom up, and reading sklearn's own error
+  messages (e.g. "feature names unseen at fit time" naming the exact
+  columns involved) as a debugging shortcut instead of guessing
+
+**Process**
+- Writing tests as an acceptance target *before* the implementation is
+  correct (each new script's tests were written and confirmed failing
+  first, then made to pass)
+- Small, focused commits with a "why," not just a "what," in the message
