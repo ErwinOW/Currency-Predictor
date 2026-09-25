@@ -23,7 +23,8 @@ widening to more data sources.
 - [x] Interest-rate data (Malaysia OPR via BNM, Indonesia via FRED) + daily alignment (3 more features, 8,964 values)
 - [x] Walk-forward backtest harness + naive baselines (`python ml/backtest.py`)
 - [x] Moving average + linear regression (in `ml/models.py`)
-- [ ] Models: random forest → XGBoost
+- [x] Random forest (in `ml/models.py`, `RF_FEATURE_COLUMNS` — first model to beat naive on every metric)
+- [ ] Models: XGBoost
 - [ ] Backtesting
 - [ ] FastAPI
 - [ ] React dashboard

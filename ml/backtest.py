@@ -24,7 +24,7 @@ from sqlalchemy import text
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from db.connection import get_engine
-from ml.models import LinearRegressionModel, MovingAverageModel, add_derived_features
+from ml.models import LinearRegressionModel, MovingAverageModel, RandomForestModel, add_derived_features
 
 CURRENCY_PAIR = "MYR/IDR"
 FIRST_TEST_YEAR = 2022
@@ -126,7 +126,13 @@ def main():
     results = pd.concat(
         [
             walk_forward(df, m)
-            for m in (NaiveModel(), NaiveMomentumModel(), MovingAverageModel(), LinearRegressionModel())
+            for m in (
+                NaiveModel(),
+                NaiveMomentumModel(),
+                MovingAverageModel(),
+                LinearRegressionModel(),
+                RandomForestModel(),
+            )
         ],
         ignore_index=True,
     )
