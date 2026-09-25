@@ -21,7 +21,8 @@ widening to more data sources.
 - [x] Exchange-rate ingestion working end-to-end (2,988 daily MYR/IDR rows loaded, 2014-12-31 → present)
 - [x] Feature engineering (9 price-based features, 26,771 values in the `features` table)
 - [x] Walk-forward backtest harness + naive baselines (`python ml/backtest.py`)
-- [ ] Models: moving average → linear → random forest → XGBoost
+- [x] Moving average + linear regression (in `ml/models.py`)
+- [ ] Models: random forest → XGBoost
 - [ ] Backtesting
 - [ ] FastAPI
 - [ ] React dashboard

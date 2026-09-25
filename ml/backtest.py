@@ -24,6 +24,7 @@ from sqlalchemy import text
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from db.connection import get_engine
+from ml.models import LinearRegressionModel, MovingAverageModel, add_derived_features
 
 CURRENCY_PAIR = "MYR/IDR"
 FIRST_TEST_YEAR = 2022
@@ -67,6 +68,21 @@ def load_data(engine) -> pd.DataFrame:
     df["date"] = pd.to_datetime(df["date"])
     df["prev_close"] = df["close"].shift(1)
     df["next_close"] = df["close"].shift(-1)
+    df["next_date"] = df["date"].shift(-1)
+
+    # Attach the engineered features from the features table (one column each).
+    feats = pd.read_sql(
+        text("SELECT date, feature_name, feature_value FROM features WHERE currency_pair = :pair"),
+        engine,
+        params={"pair": CURRENCY_PAIR},
+    )
+    feats["date"] = pd.to_datetime(feats["date"])
+    feats["feature_value"] = feats["feature_value"].astype(float)
+    wide = feats.pivot(index="date", columns="feature_name", values="feature_value").reset_index()
+    # prev_close already exists above; keep the one computed here, drop the duplicate.
+    df = df.merge(wide.drop(columns=["prev_close"]), on="date", how="left")
+    df = add_derived_features(df)
+
     # Last row has no next_close (nothing to predict yet); first has no prev_close.
     return df.dropna(subset=["prev_close", "next_close"]).reset_index(drop=True)
 
@@ -91,8 +107,11 @@ def score(test: pd.DataFrame, pred: np.ndarray) -> dict:
 def walk_forward(df: pd.DataFrame, model, first_test_year: int = FIRST_TEST_YEAR) -> pd.DataFrame:
     rows = []
     for year in range(first_test_year, int(df["date"].dt.year.max()) + 1):
-        train = df[df["date"].dt.year < year]
         test = df[df["date"].dt.year == year]
+        # Train only on rows whose target (next_close) is known before the test
+        # year starts. Without this, the last trading day of the prior year has
+        # its target on the first day of the test year, which leaks into training.
+        train = df[df["next_date"] < test["date"].min()]
         if train.empty or test.empty:
             continue
         model.fit(train)
@@ -105,7 +124,10 @@ def main():
     print(f"Loaded {len(df)} usable rows, {df['date'].min().date()} -> {df['date'].max().date()}")
 
     results = pd.concat(
-        [walk_forward(df, m) for m in (NaiveModel(), NaiveMomentumModel())],
+        [
+            walk_forward(df, m)
+            for m in (NaiveModel(), NaiveMomentumModel(), MovingAverageModel(), LinearRegressionModel())
+        ],
         ignore_index=True,
     )
     pd.set_option("display.float_format", lambda x: f"{x:,.4f}")

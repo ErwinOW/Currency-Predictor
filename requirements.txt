@@ -12,8 +12,8 @@ psycopg2-binary
 # Windows store. Safe to keep even if that stops being true.
 pip-system-certs
 
-# Machine learning (added when we get to Model 3+)
-# scikit-learn
+# Machine learning
+scikit-learn
 # xgboost
 
 # Backend (added when we get to the API step)
