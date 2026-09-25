@@ -20,6 +20,7 @@ widening to more data sources.
 - [x] PostgreSQL running (Docker Compose)
 - [x] Exchange-rate ingestion working end-to-end (2,988 daily MYR/IDR rows loaded, 2014-12-31 → present)
 - [x] Feature engineering (9 price-based features, 26,771 values in the `features` table)
+- [x] Interest-rate data (Malaysia OPR via BNM, Indonesia via FRED) + daily alignment (3 more features, 8,964 values)
 - [x] Walk-forward backtest harness + naive baselines (`python ml/backtest.py`)
 - [x] Moving average + linear regression (in `ml/models.py`)
 - [ ] Models: random forest → XGBoost
@@ -88,7 +89,25 @@ upserts them into the `features` table, long-form (one row per
 date/feature). Every feature is backward-looking only — no future
 information leaks into a given day's row (§10).
 
-### 6. Run the tests
+### 6. Fetch interest-rate data and align it
+
+Needs a free `FRED_API_KEY` in `.env` — see `.env.example` for where to get
+one. Malaysia's OPR needs no key (Bank Negara Malaysia's public API).
+
+```bash
+python ingestion/fetch_interest_rates.py --start-year 2014
+python etl/interest_rate_features.py
+```
+
+The first script pulls the raw rate history into `interest_rates` (a
+handful of rows per year — real events, not one row per day). The second
+turns that into 3 daily features (`interest_rate_malaysia`,
+`interest_rate_indonesia`, `interest_rate_differential`) using
+`pandas.merge_asof`, forward-filling each day from the most recent known
+rate — see the docstring in `etl/interest_rate_features.py` for why this
+approach can't leak future rate decisions backward.
+
+### 7. Run the tests
 
 ```bash
 pytest
