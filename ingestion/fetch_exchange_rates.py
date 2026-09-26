@@ -97,11 +97,11 @@ def load_to_postgres(df: pd.DataFrame) -> int:
     return len(records)
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", default="2015-01-01")
     parser.add_argument("--end", default=date.today().isoformat())
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     print(f"Fetching {CURRENCY_PAIR} from {args.start} to {args.end}...")
     payload = fetch(args.start, args.end)

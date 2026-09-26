@@ -15,9 +15,9 @@ intent. Not a trading system.
 
 End-to-end and working: data pipeline (ingestion → PostgreSQL → features),
 a full model ladder with walk-forward backtesting, a live prediction
-generator, a FastAPI backend, and a React dashboard consuming it. What's
-left is productionizing (scheduled automation, deployment) - see the
-checklist below.
+generator, a FastAPI backend, a React dashboard consuming it, and a
+scheduled automation layer running the whole thing unattended. What's
+left is deployment - see the checklist below.
 
 - [x] Project scaffold
 - [x] PostgreSQL running (Docker Compose)
@@ -27,14 +27,14 @@ checklist below.
 - [x] Walk-forward backtest harness + naive baselines (`python ml/backtest.py`)
 - [x] Moving average + linear regression (in `ml/models.py`)
 - [x] Random forest (in `ml/models.py`, `RF_FEATURE_COLUMNS` — first model to beat naive on every metric)
-- [x] Tests for feature engineering, backtest scoring, time alignment, random forest, XGBoost, and the API (`pytest` — 24 passing)
+- [x] Tests for feature engineering, backtest scoring, time alignment, random forest, XGBoost, the API, and the automation pipeline (`pytest` — 28 passing)
 - [x] News-sentiment data (GDELT bulk files, weekly samples 2015-present) + daily alignment (2 more features, 5,940 values)
 - [x] Commodity data (Brent + WTI via FRED, Malaysian palm oil via Yahoo Finance) + daily alignment (6 more features, 17,925 values)
 - [x] XGBoost (in `ml/models.py` — best model so far on MAE and RMSE)
 - [x] Live prediction generation (`python ml/generate_prediction.py` — trains on all data, writes to `predictions`, confidence + interval derived from real backtest history, not arbitrary numbers)
 - [x] FastAPI (`api/main.py` — `/currencies`, `/prediction/{pair}`, `/historical/{pair}`, `/indicators/{pair}`, `/model-performance`)
 - [x] React dashboard (`frontend/` — Vite + React + Tailwind + Chart.js; Currency Overview, Historical Chart, Economic Factors, Model Performance)
-- [ ] Automation (scheduler)
+- [x] Automation (`automation/scheduler.py` — APScheduler, daily + weekly jobs, per-step error isolation and logging to `logs/pipeline.log`)
 
 ### Current model results (walk-forward backtest, 2022–2026)
 
@@ -241,7 +241,7 @@ scripts produce.
 
 ### 13. Run the frontend
 
-Requires [Node.js](https://nodejs.org) (LTS) and the API running (step 11).
+Requires [Node.js](https://nodejs.org) (LTS) and the API running (step 12).
 
 ```bash
 cd frontend
@@ -253,6 +253,24 @@ Open the URL Vite prints (typically http://localhost:5173). The dev
 server proxies `/api/*` to the FastAPI backend (see
 `frontend/vite.config.js`), so no CORS setup is needed.
 
+### 14. Run the automation layer
+
+```bash
+python -m automation.pipeline daily    # run once, immediately
+python -m automation.pipeline weekly   # run once, immediately
+python -m automation.scheduler         # run forever, on a schedule
+```
+
+`scheduler.py` runs `daily_job()` (exchange rates → price features →
+commodities → commodity features → a fresh live prediction) every day at
+06:00 UTC, and `weekly_job()` (interest rates, news sentiment, and a full
+backtest — all three change slowly enough that daily reruns would be
+wasted work) every Monday at 07:00 UTC. Each step is isolated: one
+source failing is logged and skipped rather than taking down the rest of
+the run — see `logs/pipeline.log` (gitignored) for a running record in
+the format §22 of the spec describes, or `automation/pipeline.py`'s
+`run_step()`.
+
 ## Project layout
 
 ```
@@ -261,6 +279,7 @@ ingestion/   scripts that pull from external APIs into Postgres (§6)
 etl/         cleaning, time alignment, feature engineering (§9–11)
 api/         FastAPI app (§18)
 frontend/    React dashboard (§19)
+automation/  scheduled pipeline jobs (§21) + monitoring/logging (§22)
 data/raw/    raw API responses, kept for reproducibility (§8)
 data/processed/  engineered feature tables
 models/      trained model artifacts
@@ -365,6 +384,28 @@ reference.
 - Reading a traceback from the bottom up, and reading sklearn's own error
   messages (e.g. "feature names unseen at fit time" naming the exact
   columns involved) as a debugging shortcut instead of guessing
+
+**Automation / operations**
+- Different data sources justify different update cadences: daily jobs
+  for things that genuinely change daily (exchange rates, commodities),
+  a separate weekly job for things that don't (interest rates, this
+  project's weekly-sampled sentiment, and model retraining) - running
+  everything on the same daily schedule would just waste time re-fetching
+  unchanged data
+- Isolating each pipeline step in its own try/except so one failing data
+  source (a dead API, a network blip) gets logged and skipped instead of
+  silently taking down every step after it - a small pattern
+  (`run_step()`) that turns "the whole pipeline crashed" into "one line
+  in the log said FAILED, everything else still ran"
+- Making a CLI script's `main()` safely callable from *other* Python
+  code, not just the command line: `def main(argv=None)` plus
+  `parser.parse_args(argv)` means calling `main(argv=[])` from automation
+  code uses the script's own defaults, regardless of whatever the calling
+  process's real `sys.argv` happens to contain
+- A "full historical backfill" script and an "incremental daily update"
+  script don't have to be two separate files: `fetch_news_sentiment.py`
+  defaults to resuming from the last stored sample, but `--start` still
+  overrides it for a one-time full backfill
 
 **Process**
 - Writing tests as an acceptance target *before* the implementation is

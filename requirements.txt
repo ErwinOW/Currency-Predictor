@@ -21,6 +21,9 @@ fastapi
 uvicorn
 pydantic
 
+# Automation
+APScheduler
+
 # Testing
 pytest
 httpx  # needed by FastAPI's TestClient

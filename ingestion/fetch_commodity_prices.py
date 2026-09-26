@@ -159,10 +159,10 @@ def load_to_postgres(df: pd.DataFrame) -> int:
     return len(records)
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--start-year", type=int, default=2014)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     frames = []
     for commodity, series_id in FRED_SERIES.items():
