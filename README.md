@@ -287,6 +287,81 @@ docs/        project rundown + any design notes
 tests/       pytest tests for etl/ and ml/
 ```
 
+## Deployment
+
+Three separate free services (§23), plus GitHub Actions for scheduling:
+
+```
+GitHub ──push──▶ Render (API) ◀──FRONTEND_URL── Vercel (frontend)
+  │                   │
+  │ schedule          │ DATABASE_URL
+  ▼                   ▼
+GitHub Actions ───▶ Supabase (Postgres)
+  (DATABASE_URL, FRED_API_KEY secrets)
+```
+
+Render's free Postgres auto-deletes after 30 days, a bad fit for a
+project meant to stay up — Supabase's free Postgres doesn't expire, so
+the database and the backend are two different providers here rather
+than Render managing both.
+
+### 1. Database (Supabase)
+
+1. Create a free project at [supabase.com](https://supabase.com) — note
+   the database password you set, you'll need it in the connection string.
+2. Get the connection string: Project Settings → Database → Connection
+   string (URI format). It looks like
+   `postgresql://postgres:[password]@[host]:5432/postgres`.
+3. Apply the schema:
+   ```bash
+   psql "<your Supabase connection string>" -f db/schema.sql
+   ```
+4. Populate it once with historical data — point `.env`'s `DATABASE_URL`
+   at Supabase temporarily and run steps 4–11 from Setup above (exchange
+   rates through the live prediction), or just steps 4, 6, 7, 8 for a
+   faster minimal dataset without full news-sentiment history.
+
+### 2. Backend (Render)
+
+1. Push this repo to GitHub (already done, if you're reading this from
+   the repo).
+2. [render.com](https://render.com) → New → Blueprint → connect this
+   repo. Render reads `render.yaml` and creates the web service
+   automatically.
+3. Before the first deploy succeeds, set the two required env vars in
+   the Render dashboard (Environment tab): `DATABASE_URL` (Supabase's
+   connection string from step 1) and `FRED_API_KEY`.
+4. Once deployed, note the service URL (e.g.
+   `https://currency-predictor-api.onrender.com`) — needed in step 3.
+
+Free-tier note: Render's free web services spin down after 15 minutes of
+inactivity and take ~30-50 seconds to wake back up on the next request —
+normal for a free portfolio deployment, not a bug.
+
+### 3. Frontend (Vercel)
+
+1. [vercel.com](https://vercel.com) → New Project → import this repo.
+2. Set the project's root directory to `frontend/` (Vercel auto-detects
+   the Vite build settings from there).
+3. Add an environment variable: `VITE_API_URL` = the Render URL from
+   step 2 (e.g. `https://currency-predictor-api.onrender.com`).
+4. Deploy. Note the resulting URL (e.g. `https://your-app.vercel.app`).
+
+### 4. Close the loop: CORS
+
+Go back to Render (step 2) and add one more env var: `FRONTEND_URL` = the
+Vercel URL from step 3. Redeploy the backend so `api/main.py`'s CORS
+middleware picks it up — without this, the deployed frontend can reach
+the API directly (e.g. via curl) but the *browser* will block it.
+
+### 5. Automation (GitHub Actions)
+
+In the GitHub repo: Settings → Secrets and variables → Actions → add
+`DATABASE_URL` and `FRED_API_KEY` as repository secrets. The two
+workflows in `.github/workflows/` then run automatically on their own
+schedule (see `automation/pipeline.py` for what each does) — no server
+needs to stay running just to fire a job once a day or once a week.
+
 ## Learning notes
 
 This project doubles as a hands-on way to learn data engineering and ML,
