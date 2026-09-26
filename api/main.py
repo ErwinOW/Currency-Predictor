@@ -75,18 +75,7 @@ def list_currencies():
 
 @app.get("/prediction/{pair}", response_model=PredictionResponse)
 def get_prediction(pair: str):
-    """WORKED EXAMPLE - read this one first.
-
-    `{pair}` in the route path is a PATH PARAMETER - FastAPI passes
-    whatever the caller put there (e.g. "MYR-IDR") into the `pair`
-    argument automatically, no manual URL parsing needed.
-
-    `response_model=PredictionResponse` tells FastAPI "whatever this
-    function returns, validate and serialize it as a PredictionResponse."
-    Below we build a dict; FastAPI converts it for us and would raise a
-    clear error if a field were missing or the wrong type - catching bugs
-    before a broken response ever reaches a caller.
-    """
+    """Today's actual close plus the latest model prediction for it (§14)."""
     currency_pair = normalize_pair(pair)
     engine = get_engine()
 
@@ -102,8 +91,6 @@ def get_prediction(pair: str):
         ).mappings().first()
 
     if current_row is None or prediction_row is None:
-        # HTTPException is how FastAPI routes report an error to the caller -
-        # it turns into a proper HTTP 404 response, not a crash.
         raise HTTPException(
             status_code=404,
             detail=f"No prediction available for {currency_pair} yet - run ml/generate_prediction.py first",

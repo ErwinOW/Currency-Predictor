@@ -1,9 +1,6 @@
-"""Tests for XGBoostModel (ml/models.py).
-
-Run with: pytest tests/test_xgboost_model.py -v
-
-These will fail with NotImplementedError until you fill in __init__, fit,
-and predict. Once implemented correctly, all three should pass.
+"""Tests for XGBoostModel (ml/models.py), on synthetic data with a known,
+clean signal - checks it fits, predicts correlated output, and correctly
+identifies the one informative feature via feature_importances_.
 """
 import numpy as np
 import pandas as pd

@@ -97,38 +97,10 @@ class LinearRegressionModel:
 class RandomForestModel:
     """Predict next-day return from the features using a random forest (§12 Model 4).
 
-    YOUR TURN. This class follows the exact same shape as LinearRegressionModel
-    above - same target (next-day return, not raw price, for the reason explained
-    there), same three methods. Use it as your reference.
-
-    What to fill in:
-
-    1. __init__: create self.model = RandomForestRegressor(...).
-       Docs: https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestRegressor.html
-       Start by choosing values for:
-         - n_estimators    how many trees (100-300 is a reasonable range to try)
-         - max_depth       how many questions deep a tree can go. Small values
-                            (e.g. 3-6) fight overfitting; None means "no limit",
-                            which on ~2,900 noisy rows risks memorizing noise -
-                            see the explanation in the chat before you pick this.
-         - min_samples_leaf a leaf must have at least this many rows. Higher =
-                            more conservative, similar effect to max_depth.
-         - random_state=42  fixes the randomness so re-running gives the same
-                            result - important for comparing settings fairly.
-       Unlike LinearRegressionModel, there's no StandardScaler/pipeline needed -
-       trees split on raw thresholds, so feature scale doesn't matter to them.
-
-    2. fit(self, train): same 3 lines as LinearRegressionModel.fit, but:
-         - use RF_FEATURE_COLUMNS instead of FEATURE_COLUMNS
-         - call self.model.fit(...) instead of self.pipeline.fit(...)
-
-    3. predict(self, test): same idea as LinearRegressionModel.predict, again
-       swapping in RF_FEATURE_COLUMNS and self.model.
-
-    Once it runs, look at self.model.feature_importances_ (one number per
-    column in RF_FEATURE_COLUMNS, summing to 1) - it tells you which features
-    the forest actually leaned on. Worth printing after a fit() call to see
-    whether the interest-rate features earned their place.
+    max_depth=5 and min_samples_leaf=10 are deliberately conservative -
+    an unconstrained tree can memorize individual rows in ~2,900 samples
+    of noisy daily FX data. Unlike LinearRegressionModel, no scaler is
+    needed: trees split on raw thresholds, so feature scale doesn't matter.
     """
 
     name = "random_forest"
@@ -149,39 +121,11 @@ class RandomForestModel:
 class XGBoostModel:
     """Predict next-day return using gradient boosting (§12 Model 5).
 
-    YOUR TURN, same three methods as RandomForestModel above - use it as
-    your reference, and reuse RF_FEATURE_COLUMNS (same feature set, no new
-    list needed - trees don't care about feature scale here either).
-
-    The one real difference from random forest: boosting builds trees
-    SEQUENTIALLY, each one correcting the previous trees' mistakes, instead
-    of averaging independent trees. That makes one new hyperparameter
-    relevant that random forest doesn't have:
-
-        learning_rate   how much each new tree is allowed to correct.
-                        Small (e.g. 0.05) = each tree nudges gently, needs
-                        more rounds, generally overfits less. Large (e.g.
-                        0.3) = corrects fast, more prone to chasing noise.
-                        Try 0.05-0.1 as a starting point.
-
-    What to fill in:
-
-    1. __init__: create self.model = xgb.XGBRegressor(...).
-       Docs: https://xgboost.readthedocs.io/en/stable/python/python_api.html#xgboost.XGBRegressor
-       Same parameters to choose as RandomForestModel (n_estimators,
-       max_depth, random_state) PLUS learning_rate. One tuning note:
-       because boosting compounds each tree's mistakes into the next,
-       max_depth is usually set SHALLOWER here than for a random forest
-       (e.g. 2-4 rather than 5) - a good thing to try both ways and
-       compare once it's running.
-
-    2. fit(self, train): identical shape to RandomForestModel.fit.
-
-    3. predict(self, test): identical shape to RandomForestModel.predict.
-
-    Compare self.model.feature_importances_ against RandomForestModel's -
-    worth checking whether boosting leans on the same features or finds
-    different ones useful.
+    Unlike random forest's independent trees averaged together, boosting
+    builds trees sequentially, each correcting the previous trees'
+    errors - so max_depth=1 (a single split per tree, a "stump") is
+    conservative on purpose: with ~2,900 noisy samples, deeper trees here
+    would compound overfitting across rounds rather than average it out.
     """
 
     name = "xgboost"

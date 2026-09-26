@@ -2,15 +2,11 @@
 
 Run with: pytest tests/test_api.py -v
 
-Unlike the earlier ML tests (which used small synthetic data), these hit
-your REAL local Postgres database - that's normal for API tests, since
-the whole point of an API is to serve real data. Make sure Docker/Postgres
-is running and you've run the ingestion + feature + backtest + prediction
-scripts at least once before running these.
-
-The three YOUR TURN routes in api/main.py currently raise
-NotImplementedError, so their tests will fail until you implement them -
-same pattern as the random forest / XGBoost exercises.
+Unlike the ML tests (which use small synthetic data), these hit the real
+local Postgres database - that's normal for API tests, since the whole
+point of an API is to serve real data. Make sure Docker/Postgres is
+running and the ingestion + feature + backtest + prediction scripts have
+been run at least once before running these.
 """
 from fastapi.testclient import TestClient
 
