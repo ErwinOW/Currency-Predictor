@@ -13,9 +13,11 @@ intent. Not a trading system.
 
 ## Status
 
-The data pipeline (ingestion → PostgreSQL → features) and a working model
-ladder with walk-forward backtesting are done. Next up is either another
-data source (commodities, news sentiment) or XGBoost, then the API/UI.
+End-to-end and working: data pipeline (ingestion → PostgreSQL → features),
+a full model ladder with walk-forward backtesting, a live prediction
+generator, a FastAPI backend, and a React dashboard consuming it. What's
+left is optional breadth (news-sentiment data) and productionizing
+(scheduled automation, deployment) - see the checklist below.
 
 - [x] Project scaffold
 - [x] PostgreSQL running (Docker Compose)
@@ -31,7 +33,7 @@ data source (commodities, news sentiment) or XGBoost, then the API/UI.
 - [x] Live prediction generation (`python ml/generate_prediction.py` — trains on all data, writes to `predictions`, confidence + interval derived from real backtest history, not arbitrary numbers)
 - [x] FastAPI (`api/main.py` — `/currencies`, `/prediction/{pair}`, `/historical/{pair}`, `/indicators/{pair}`, `/model-performance`)
 - [ ] News-sentiment data (§4.9)
-- [ ] React dashboard
+- [x] React dashboard (`frontend/` — Vite + React + Tailwind + Chart.js; Currency Overview, Historical Chart, Economic Factors, Model Performance)
 - [ ] Automation (scheduler)
 
 ### Current model results (walk-forward backtest, 2022–2026)
@@ -208,6 +210,20 @@ automatically from the route type hints and `api/schemas.py`. Run
 `ingestion/fetch_exchange_rates.py`, `ml/generate_prediction.py`, and
 `ml/backtest.py` at least once first, since the routes read what those
 scripts produce.
+
+### 12. Run the frontend
+
+Requires [Node.js](https://nodejs.org) (LTS) and the API running (step 11).
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open the URL Vite prints (typically http://localhost:5173). The dev
+server proxies `/api/*` to the FastAPI backend (see
+`frontend/vite.config.js`), so no CORS setup is needed.
 
 ## Project layout
 

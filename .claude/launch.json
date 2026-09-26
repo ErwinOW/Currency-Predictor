@@ -1,0 +1,21 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "C:\\Users\\IDEAPAD\\OneDrive\\Desktop\\Currency Predictor\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "api.main:app", "--reload", "--port", "8000"],
+      "port": 8000
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "C:\\PROGRA~1\\nodejs\\node.exe",
+      "runtimeArgs": [
+        "C:\\Users\\IDEAPAD\\OneDrive\\Desktop\\Currency Predictor\\frontend\\node_modules\\vite\\bin\\vite.js",
+        "C:\\Users\\IDEAPAD\\OneDrive\\Desktop\\Currency Predictor\\frontend",
+        "--port", "5173"
+      ],
+      "port": 5173
+    }
+  ]
+}
