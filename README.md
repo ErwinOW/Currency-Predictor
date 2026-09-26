@@ -364,10 +364,85 @@ needs to stay running just to fire a job once a day or once a week.
 
 ## Learning notes
 
-This project doubles as a hands-on way to learn data engineering and ML,
-not just a finished deliverable — this section is a running log of what
-each step actually taught, kept for the portfolio and as a personal
-reference.
+This project is also a record of learning to build a full application by
+**directing an AI coding agent (Claude)** rather than hand-writing most
+of the code — the skill being practiced is scoping work, making the real
+decisions, and verifying what comes back, not typing every line. Kept as
+a running log for the portfolio and as a personal reference.
+
+**Directing AI effectively**
+- Starting from a full written spec (`docs/project_rundown.md`) rather
+  than piecemeal requests — a clear upfront brief meant the agent could
+  make consistent, well-reasoned calls across dozens of files without
+  re-explaining the goal every time
+- "Walking skeleton first": directing the agent to build one thin slice
+  end-to-end (fetch → database → query back out) before widening to more
+  data sources — the same discipline applies whether a human or an AI is
+  doing the typing, and it surfaced real problems (a Docker PATH issue, a
+  Windows SSL quirk) while there was still only one thing to debug
+- Treating real forks in the road as decisions to make deliberately, not
+  ones to let the agent make silently: which data source to trust, which
+  hosting provider fits a portfolio project's actual constraints (a free
+  database that doesn't expire vs. one that does), sequencing backend
+  before frontend so the UI shows real data from the start instead of
+  disposable mock data
+- Being explicit about who does what: an ambiguous "let's do the next
+  step" once resulted in the agent writing code the user actually wanted
+  to write themselves — a concrete lesson that clear task ownership has
+  to be stated, not assumed, when directing an AI collaborator
+
+**Verifying AI's work, not just trusting it**
+- Asking for a real test suite and actually running it, rather than
+  accepting "this should work" — caught a real bug (`forward_fill_to_daily`
+  crashing on a `DatetimeIndex` input) before it ever touched the database
+- Spot-checking the agent's output against ground truth: a computed
+  return checked by hand against raw prices, a feature value checked
+  against the exact API response it came from, an API endpoint hit
+  directly with `curl` instead of trusting the dashboard alone
+- Re-reading AI-authored code turned up real mistakes worth catching: a
+  stray non-English character dropped into a docstring, a duplicated
+  block pasted twice, a generated cache file that should have been
+  gitignored but wasn't at first
+- Several genuine problems only surfaced by actually *running* things,
+  not by reading a plan: Docker/Node.js installed but not on this
+  machine's PATH, a free API's rate limit that no amount of waiting could
+  clear, a dev server that silently stalled the first time new
+  dependencies were added. An agent's plan can be sound and the real
+  environment can still disagree with it
+
+**What AI made possible at this scope**
+- One project spanning Python/pandas/PostgreSQL, scikit-learn/XGBoost,
+  FastAPI, React/Vite/Tailwind, Docker, a scheduled automation layer, and
+  a three-service cloud deployment — a breadth of tooling that would
+  normally take much longer to become independently proficient in across
+  every layer first. The leverage isn't skipping understanding; it's
+  reviewing and directing across a full stack instead of mastering one
+  layer at a time before starting the next
+- Two different ways of working with the same agent, used deliberately at
+  different points: writing code by hand with the agent as a reviewer and
+  guide (to actually learn the mechanics of a new library), and directing
+  the agent to implement directly with a clear explanation afterward (to
+  move faster once the goal was to ship a working system) — recognizing
+  which mode fits the moment, and saying so, rather than defaulting to one
+
+**Honesty as a collaboration norm**
+- An agent that surfaces its own limitations is more useful than one that
+  hides them: a feature explicitly documented as *weekly*-resolution
+  rather than presented as a true daily aggregate, a live prediction's
+  confidence value reported as an honest ~52% (barely better than a coin
+  flip) instead of a reassuring invented number, a hosting tradeoff
+  (a free database that auto-deletes after 30 days) flagged before it
+  became a problem rather than after
+- The same standard applied back the other way: asking the agent to
+  explain *why* behind every change, not just *what* changed, made it
+  possible to actually evaluate its decisions instead of rubber-stamping
+  a diff
+
+**What got built, and why (technical reference)**
+
+The sections below are the concrete engineering decisions behind the
+system above — reviewed and directed rather than hand-typed, but still
+the reasoning a portfolio reviewer (or future me) would want to see.
 
 **Data engineering**
 - Pulling data from real APIs and handling their quirks: pagination-free
@@ -449,7 +524,8 @@ reference.
   historical directional accuracy (~52%) rather than a reassuring-looking
   made-up number
 
-**Python, learned by debugging real errors**
+**Python, from the one stretch of hand-typed code (the random forest and
+XGBoost model classes)**
 - Code after a `raise` never executes in that function
 - Positional arguments can't follow keyword arguments in a call
   (`f(x=1, y)` is a `SyntaxError`)
