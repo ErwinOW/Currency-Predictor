@@ -64,7 +64,16 @@ class NaiveMomentumModel:
         return (test["close"] + (test["close"] - test["prev_close"])).to_numpy()
 
 
-def load_data(engine) -> pd.DataFrame:
+def load_raw_features(engine) -> pd.DataFrame:
+    """Exchange rates + every engineered feature, joined, for every date on record.
+
+    Deliberately keeps the most recent row even though it has no next_close
+    yet (nothing has happened "tomorrow" for the last row in the table) -
+    that row is exactly what ml/generate_prediction.py needs: today's
+    features, to predict a next_close that doesn't exist yet. load_data()
+    below is the backtesting version, which correctly drops that row
+    instead (you can't score a prediction you have no real answer for).
+    """
     df = pd.read_sql(
         text("SELECT date, close FROM exchange_rates WHERE currency_pair = :pair ORDER BY date"),
         engine,
@@ -87,8 +96,11 @@ def load_data(engine) -> pd.DataFrame:
     wide = feats.pivot(index="date", columns="feature_name", values="feature_value").reset_index()
     # prev_close already exists above; keep the one computed here, drop the duplicate.
     df = df.merge(wide.drop(columns=["prev_close"]), on="date", how="left")
-    df = add_derived_features(df)
+    return add_derived_features(df)
 
+
+def load_data(engine) -> pd.DataFrame:
+    df = load_raw_features(engine)
     # Last row has no next_close (nothing to predict yet); first has no prev_close.
     return df.dropna(subset=["prev_close", "next_close"]).reset_index(drop=True)
 
@@ -108,6 +120,26 @@ def score(test: pd.DataFrame, pred: np.ndarray) -> dict:
         "directional_accuracy": dir_acc if predicts_direction else float("nan"),
         "n": int(len(test)),
     }
+
+
+def collect_residuals(df: pd.DataFrame, model, first_test_year: int = FIRST_TEST_YEAR) -> np.ndarray:
+    """Every out-of-sample (predicted - actual) error the model made across
+    all walk-forward test years, pooled into one array.
+
+    Used by ml/generate_prediction.py to build a prediction interval from
+    the model's actual historical track record, instead of an assumed
+    (and likely wrong) bell-curve shape or an arbitrary +/- number - see
+    that script's docstring for §14's "not an arbitrary number" rule.
+    """
+    errors = []
+    for year in range(first_test_year, int(df["date"].dt.year.max()) + 1):
+        test = df[df["date"].dt.year == year]
+        train = df[df["next_date"] < test["date"].min()]
+        if train.empty or test.empty:
+            continue
+        model.fit(train)
+        errors.append(model.predict(test) - test["next_close"].to_numpy())
+    return np.concatenate(errors)
 
 
 def walk_forward(df: pd.DataFrame, model, first_test_year: int = FIRST_TEST_YEAR) -> pd.DataFrame:

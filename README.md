@@ -28,6 +28,7 @@ data source (commodities, news sentiment) or XGBoost, then the API/UI.
 - [x] Tests for feature engineering, backtest scoring, time alignment, random forest, and XGBoost (`pytest` — 18 passing)
 - [x] Commodity data (Brent + WTI via FRED, Malaysian palm oil via Yahoo Finance) + daily alignment (6 more features, 17,925 values)
 - [x] XGBoost (in `ml/models.py` — best model so far on MAE and RMSE)
+- [x] Live prediction generation (`python ml/generate_prediction.py` — trains on all data, writes to `predictions`, confidence + interval derived from real backtest history, not arbitrary numbers)
 - [ ] News-sentiment data (§4.9)
 - [ ] FastAPI
 - [ ] React dashboard
@@ -183,6 +184,19 @@ regression, random forest, XGBoost) on the same folds and prints
 MAE/RMSE/directional accuracy per year and overall — see "Current model
 results" above for the latest numbers.
 
+### 10. Generate today's live prediction
+
+```bash
+python ml/generate_prediction.py
+```
+
+Trains XGBoost on every day of history available (unlike the backtest,
+which deliberately holds years back), predicts the next trading day's
+close, and writes a row to `predictions`. Per §14, the confidence value
+and prediction range are both derived from the model's actual walk-forward
+track record (see the docstring in `ml/generate_prediction.py`), not
+invented numbers.
+
 ## Project layout
 
 ```
@@ -260,6 +274,17 @@ reference.
   them once its stronger features already covered that ground), while
   random forest's per-tree random sampling gave every feature at least a
   small, nonzero score by chance
+- A "production" model differs from a backtested one in what it's allowed
+  to train on: the backtest deliberately withholds years to score the
+  model honestly, but the live predictor (`ml/generate_prediction.py`)
+  retrains on everything available, since there's no future left to
+  withhold once you actually want tomorrow's number
+- An honest confidence value, not an invented one (§14): an empirical
+  prediction interval built from a model's own pooled walk-forward
+  errors (their 5th/95th percentile) sidesteps assuming errors are
+  bell-curve-shaped, and "confidence" reported as the model's actual
+  historical directional accuracy (~52%) rather than a reassuring-looking
+  made-up number
 
 **Python, learned by debugging real errors**
 - Code after a `raise` never executes in that function
