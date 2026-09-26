@@ -5,23 +5,18 @@ Run it with:
 
 Then open http://127.0.0.1:8000/docs for FastAPI's auto-generated,
 interactive API docs (built entirely from the type hints and Pydantic
-models below - a big part of why FastAPI is worth learning).
-
-WORKED EXAMPLE: get_prediction() below is written out in full, with heavy
-comments, as the pattern for the other three routes. YOUR TURN covers
-get_historical, get_indicators, and get_model_performance further down -
-each follows the same shape: read from Postgres (or the cached JSON, for
-model performance), shape the result into the matching schema from
-api/schemas.py, return it.
+models below).
 """
+import json
 import sys
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from db.connection import get_engine
+from ml.backtest import MODEL_PERFORMANCE_PATH
 from api.schemas import HistoricalPoint, IndicatorValue, ModelPerformanceEntry, PredictionResponse
 
 app = FastAPI(title="Currency Predictor API")
@@ -112,81 +107,68 @@ def get_prediction(pair: str):
 
 @app.get("/historical/{pair}", response_model=list[HistoricalPoint])
 def get_historical(pair: str):
-    """YOUR TURN.
+    """Every (date, close) row for this pair, oldest first - feeds the historical chart (§19/§20)."""
+    currency_pair = normalize_pair(pair)
+    engine = get_engine()
 
-    Return every (date, close) row from exchange_rates for this currency
-    pair, oldest first - this feeds the historical chart (§19/§20).
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT date, close FROM exchange_rates WHERE currency_pair = :p ORDER BY date"),
+            {"p": currency_pair},
+        ).mappings().all()
 
-    Steps (mirror get_prediction above):
-    1. currency_pair = normalize_pair(pair)
-    2. Open a connection: engine = get_engine(); with engine.connect() as conn:
-    3. Run a SELECT for date, close FROM exchange_rates WHERE
-       currency_pair = :p ORDER BY date (ascending, not DESC this time -
-       a chart needs oldest-to-newest).
-    4. conn.execute(...).mappings().all() gets you every matching row (vs
-       .first() which only got one, above).
-    5. Return a list of dicts shaped like HistoricalPoint (date, close) -
-       FastAPI/Pydantic will validate + serialize the whole list because
-       of response_model=list[HistoricalPoint].
-
-    Optional stretch, once the basic version works: add a `limit: int |
-    None = None` parameter to the function signature - FastAPI
-    automatically turns that into an optional ?limit=90 query parameter,
-    no extra code needed. Use it to return only the most recent N rows.
-    """
-    raise NotImplementedError("See the docstring above for the steps")
+    return [{"date": row["date"], "close": float(row["close"])} for row in rows]
 
 
 @app.get("/indicators/{pair}", response_model=list[IndicatorValue])
 def get_indicators(pair: str):
-    """YOUR TURN.
+    """Latest value of each feature in INDICATOR_FEATURES (§19/§20 "Economic Factors").
 
-    Return the MOST RECENT value of each feature listed in
-    INDICATOR_FEATURES (defined near the top of this file) - this feeds
-    the "Economic Factors" panel (§19/§20).
+    The features table has many rows per feature_name (one per date), so a
+    subquery picks out just the most recent date's rows. `feature_name IN
+    :names` needs the bind parameter marked as "expanding" - a plain :name
+    only ever substitutes ONE value, but IN needs to expand to N values
+    (one per entry in INDICATOR_FEATURES), which is what bindparam(...,
+    expanding=True) tells SQLAlchemy to do.
+    """
+    currency_pair = normalize_pair(pair)
+    engine = get_engine()
 
-    The tricky part: the features table has many rows per feature_name
-    (one per date), and you only want the latest one for each. A
-    subquery is the clean way to ask for that in SQL:
-
+    query = text(
+        """
         SELECT feature_name, feature_value, date
         FROM features
         WHERE currency_pair = :p
           AND feature_name IN :names
           AND date = (SELECT MAX(date) FROM features WHERE currency_pair = :p)
+        """
+    ).bindparams(bindparam("names", expanding=True))
 
-    (":names" as a tuple/list works with SQLAlchemy's text() + IN, same
-    style as :p elsewhere in this file.)
+    with engine.connect() as conn:
+        rows = conn.execute(query, {"p": currency_pair, "names": list(INDICATOR_FEATURES.keys())}).mappings().all()
 
-    Steps:
-    1. currency_pair = normalize_pair(pair)
-    2. Run that query (or your own equivalent) with
-       conn.execute(...).mappings().all()
-    3. For each row, look up INDICATOR_FEATURES[row["feature_name"]] to
-       get its human-readable name
-    4. Return a list of dicts shaped like IndicatorValue (name, value,
-       as_of_date)
-    """
-    raise NotImplementedError("See the docstring above for the steps")
+    return [
+        {
+            "name": INDICATOR_FEATURES[row["feature_name"]],
+            "value": float(row["feature_value"]),
+            "as_of_date": row["date"],
+        }
+        for row in rows
+    ]
 
 
 @app.get("/model-performance", response_model=list[ModelPerformanceEntry])
 def get_model_performance():
-    """YOUR TURN.
-
-    Unlike the other routes, this one doesn't touch Postgres at all - it
-    reads the JSON file ml/backtest.py writes at the end of its run
-    (data/processed/model_performance.json), because re-running the full
-    backtest (6 models x 5 years) on every API request would be far too
-    slow for an endpoint that's supposed to respond instantly.
-
-    Steps:
-    1. import json, and MODEL_PERFORMANCE_PATH from ml.backtest (same
-       import style as `from db.connection import get_engine` above)
-    2. If the file doesn't exist yet (MODEL_PERFORMANCE_PATH.exists()),
-       raise HTTPException(404, "...") with a message telling the caller
-       to run ml/backtest.py first
-    3. Otherwise, read and json.loads() the file, and return
-       payload["models"] - already shaped to match ModelPerformanceEntry
+    """Reads the cached backtest summary (data/processed/model_performance.json)
+    instead of touching Postgres or re-running the full walk-forward
+    backtest (6 models x 5 years) on every request - see ml/backtest.py's
+    save_model_performance().
     """
-    raise NotImplementedError("See the docstring above for the steps")
+    if not MODEL_PERFORMANCE_PATH.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="No cached model performance yet - run ml/backtest.py first",
+        )
+
+    payload = json.loads(MODEL_PERFORMANCE_PATH.read_text())
+    return payload["models"]

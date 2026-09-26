@@ -25,11 +25,11 @@ data source (commodities, news sentiment) or XGBoost, then the API/UI.
 - [x] Walk-forward backtest harness + naive baselines (`python ml/backtest.py`)
 - [x] Moving average + linear regression (in `ml/models.py`)
 - [x] Random forest (in `ml/models.py`, `RF_FEATURE_COLUMNS` — first model to beat naive on every metric)
-- [x] Tests for feature engineering, backtest scoring, time alignment, random forest, XGBoost, and the API (`pytest` — 21 of 24 passing, 3 are the API routes below still in progress)
+- [x] Tests for feature engineering, backtest scoring, time alignment, random forest, XGBoost, and the API (`pytest` — 24 passing)
 - [x] Commodity data (Brent + WTI via FRED, Malaysian palm oil via Yahoo Finance) + daily alignment (6 more features, 17,925 values)
 - [x] XGBoost (in `ml/models.py` — best model so far on MAE and RMSE)
 - [x] Live prediction generation (`python ml/generate_prediction.py` — trains on all data, writes to `predictions`, confidence + interval derived from real backtest history, not arbitrary numbers)
-- [~] FastAPI (`api/main.py` — `/currencies` and `/prediction/{pair}` done; `/historical`, `/indicators`, `/model-performance` in progress)
+- [x] FastAPI (`api/main.py` — `/currencies`, `/prediction/{pair}`, `/historical/{pair}`, `/indicators/{pair}`, `/model-performance`)
 - [ ] News-sentiment data (§4.9)
 - [ ] React dashboard
 - [ ] Automation (scheduler)
