@@ -1,0 +1,25 @@
+name: Weekly pipeline
+
+# Runs automation/pipeline.py's weekly_job() - interest rates, news
+# sentiment, and a full model backtest. See daily-pipeline.yml for the
+# secrets this needs (DATABASE_URL, FRED_API_KEY) and why this uses
+# GitHub Actions' own scheduler instead of an always-on process.
+
+on:
+  schedule:
+    - cron: "0 7 * * 1" # Monday 07:00 UTC - matches automation/scheduler.py's own schedule
+  workflow_dispatch: {}
+
+jobs:
+  weekly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python -m automation.pipeline weekly
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}

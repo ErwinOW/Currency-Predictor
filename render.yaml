@@ -1,0 +1,21 @@
+# Render Blueprint (§23) for the FastAPI backend.
+# Deploy: connect this repo in the Render dashboard - Render reads this
+# file automatically and creates the service below. Postgres itself is
+# NOT defined here - this project uses Supabase's free Postgres instead
+# (Render's free Postgres is auto-deleted after 30 days), so DATABASE_URL
+# is set manually as a secret in the Render dashboard instead of being
+# wired up as a Render-managed database.
+services:
+  - type: web
+    name: currency-predictor-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false # set manually in the dashboard - the Supabase connection string
+      - key: FRED_API_KEY
+        sync: false # set manually in the dashboard
+      - key: FRONTEND_URL
+        sync: false # set manually once the frontend's deployed (e.g. https://your-app.vercel.app)

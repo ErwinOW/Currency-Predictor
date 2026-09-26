@@ -1,0 +1,27 @@
+name: Daily pipeline
+
+# Runs automation/pipeline.py's daily_job() on GitHub's own free cron
+# infrastructure - an alternative to an always-on worker process, which
+# would cost money to keep running 24/7 just to fire once a day.
+# Requires two repo secrets (Settings -> Secrets and variables -> Actions):
+#   DATABASE_URL   the Supabase (or other) Postgres connection string
+#   FRED_API_KEY   see .env.example for where to get one
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # 06:00 UTC daily - matches automation/scheduler.py's own schedule
+  workflow_dispatch: {} # lets you trigger a run manually from the Actions tab
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python -m automation.pipeline daily
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}

@@ -8,10 +8,12 @@ interactive API docs (built entirely from the type hints and Pydantic
 models below).
 """
 import json
+import os
 import sys
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import bindparam, text
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -20,6 +22,25 @@ from ml.backtest import MODEL_PERFORMANCE_PATH
 from api.schemas import HistoricalPoint, IndicatorValue, ModelPerformanceEntry, PredictionResponse
 
 app = FastAPI(title="Currency Predictor API")
+
+# In development, Vite's own dev-server proxy (frontend/vite.config.js)
+# means the browser only ever talks to one origin, so no CORS setup is
+# needed. In production the frontend and backend are on two different
+# domains (e.g. a Vercel URL calling a Render URL), so the browser will
+# block the request unless this API explicitly allows that origin.
+# FRONTEND_URL is set as an environment variable on the deployed backend,
+# not hardcoded, since the deployed frontend's URL isn't known until
+# after it's deployed.
+_allowed_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+if frontend_url := os.environ.get("FRONTEND_URL"):
+    _allowed_origins.append(frontend_url)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
 SUPPORTED_PAIRS = ["MYR/IDR"]
 

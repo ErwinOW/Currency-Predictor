@@ -16,9 +16,21 @@ import os
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 
+def _normalize(url: str) -> str:
+    """Many managed Postgres providers (Supabase, Render, Heroku-style
+    hosts) hand out connection strings starting with "postgres://", which
+    SQLAlchemy 1.4+ no longer accepts (it needs the exact dialect name,
+    "postgresql://"). Fixed once here rather than requiring every
+    deployment target to hand-edit its own URL.
+    """
+    if url.startswith("postgres://"):
+        return "postgresql://" + url[len("postgres://"):]
+    return url
+
+
 def get_engine():
     if not DATABASE_URL:
         raise RuntimeError(
             "DATABASE_URL is not set. Copy .env.example to .env and fill it in."
         )
-    return create_engine(DATABASE_URL)
+    return create_engine(_normalize(DATABASE_URL))
