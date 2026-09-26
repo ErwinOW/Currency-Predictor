@@ -36,6 +36,13 @@ RF_FEATURE_COLUMNS = FEATURE_COLUMNS + [
     "interest_rate_malaysia",
     "interest_rate_indonesia",
     "interest_rate_differential",
+    # Only the returns, not the raw brent_price/wti_price/palm_oil_price
+    # levels - same reason as ma_gap_7/30 above: a raw price level drifts
+    # over a decade of data (oil at $40 in 2015 vs $95 in 2026), while a
+    # day-over-day return stays in a comparable range across all years.
+    "brent_return_1d",
+    "wti_return_1d",
+    "palm_oil_return_1d",
 ]
 
 

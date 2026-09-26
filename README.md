@@ -25,9 +25,10 @@ data source (commodities, news sentiment) or XGBoost, then the API/UI.
 - [x] Walk-forward backtest harness + naive baselines (`python ml/backtest.py`)
 - [x] Moving average + linear regression (in `ml/models.py`)
 - [x] Random forest (in `ml/models.py`, `RF_FEATURE_COLUMNS` — first model to beat naive on every metric)
-- [x] Tests for feature engineering, backtest scoring, interest-rate alignment, and the random forest (`pytest` — 14 passing)
+- [x] Tests for feature engineering, backtest scoring, time alignment, and the random forest (`pytest` — 14 passing)
+- [x] Commodity data (Brent + WTI via FRED, Malaysian palm oil via Yahoo Finance) + daily alignment (6 more features, 17,925 values)
 - [ ] Models: XGBoost
-- [ ] Commodity and/or news-sentiment data (§4.7, §4.9)
+- [ ] News-sentiment data (§4.9)
 - [ ] FastAPI
 - [ ] React dashboard
 - [ ] Automation (scheduler)
@@ -38,18 +39,21 @@ data source (commodities, news sentiment) or XGBoost, then the API/UI.
 |---|---|---|---|
 | Naive (tomorrow = today) | 10.11 | 13.78 | n/a |
 | Linear regression | 10.12 | 13.81 | 51.7% |
-| **Random forest** | **10.09** | **13.76** | **52.8%** |
+| **Random forest** | **10.08** | **13.77** | **52.2%** |
 | Moving average (7-day) | 16.97 | 22.76 | 51.3% |
 | Naive momentum | 14.65 | 19.88 | 48.5% |
 
 Random forest is currently the best model, but only marginally ahead of
-just guessing "no change." Its `feature_importances_` show why: the
-interest-rate features are ~4% of its total importance combined — OPR/BI
-rates only change a few times a year, so there's little new signal in them
-for a 1-day-ahead prediction. Daily FX moves are close to a random walk;
-beating that meaningfully likely needs a data source that actually moves
-day-to-day, which is why commodities or news sentiment are the natural
-next step rather than a fancier model on the same inputs.
+just guessing "no change." Its `feature_importances_` show a clear split
+by *how often the underlying data actually changes*: oil (`brent_return_1d`,
+`wti_return_1d`, both ~7-8% importance) clearly outranks all three
+interest-rate features (~2% each combined ~4%) — oil trades continuously
+with real daily volatility, while OPR/BI rates only change a handful of
+times a year, so there's little new information in them for a
+1-day-ahead target. Daily FX moves are still close to a random walk
+overall; meaningfully beating that likely needs either a longer
+prediction horizon (interest rates would matter more there) or a data
+source with more day-to-day signal, like news sentiment.
 
 ## Setup
 
@@ -128,7 +132,27 @@ turns that into 3 daily features (`interest_rate_malaysia`,
 rate — see the docstring in `etl/interest_rate_features.py` for why this
 approach can't leak future rate decisions backward.
 
-### 7. Run the tests
+### 7. Fetch commodity prices and align them
+
+Reuses the same `FRED_API_KEY` from step 6. No key needed for palm oil
+(Yahoo Finance's public chart endpoint).
+
+```bash
+python ingestion/fetch_commodity_prices.py --start-year 2014
+python etl/commodity_features.py
+```
+
+Brent and WTI crude come from FRED; Malaysian palm oil comes from Yahoo
+Finance (ticker `CPO=F`) since FRED only has it monthly. Produces 6 daily
+features (`{brent,wti,palm_oil}_price` and `_return_1d` for each) via the
+same `pandas.merge_asof` alignment as interest rates — now pulled out into
+`etl/time_alignment.py` since two different scripts needed the identical
+logic. See `ingestion/fetch_commodity_prices.py`'s docstring for two real
+data quirks it handles: WTI's genuine negative price in April 2020, and
+Yahoo silently returning monthly-resolution data for long date ranges
+unless you pass explicit start/end timestamps.
+
+### 8. Run the tests
 
 ```bash
 pytest
@@ -139,7 +163,7 @@ Checks the feature math against hand-calculated examples (e.g. that a
 rule actually holds (changing tomorrow's price must not change today's
 features), plus the backtest scoring and random-forest functions.
 
-### 8. Run the model backtest
+### 9. Run the model backtest
 
 ```bash
 python ml/backtest.py
@@ -175,7 +199,9 @@ reference.
 **Data engineering**
 - Pulling data from real APIs and handling their quirks: pagination-free
   REST calls, a genuine duplicate-row bug in Bank Negara Malaysia's own
-  API (caught by validation, not assumed away)
+  API (caught by validation, not assumed away), Yahoo Finance silently
+  coarsening a long date range to monthly resolution unless given
+  explicit start/end timestamps instead of a relative range
 - Idempotent loading with `INSERT ... ON CONFLICT ... DO UPDATE` (upserts)
   so re-running an ingestion script is always safe
 - Keeping raw API responses on disk separately from the processed
@@ -184,6 +210,15 @@ reference.
   in git history
 - Running a local service (Postgres) in Docker instead of installing it
   system-wide
+- Refactoring once, not before: `forward_fill_to_daily` and the
+  load/save boilerplate around the `features` table were written once
+  for interest rates, then pulled into shared modules
+  (`etl/time_alignment.py`, `etl/features_common.py`) only once a second
+  caller (commodities) actually needed the same logic
+- Validation ranges have to fit the data, not the other way around: WTI
+  crude genuinely went negative in April 2020 (a real, famous event, not
+  an error) — a single positive-only sanity check across all commodities
+  would have silently discarded real data
 
 **Time-series / ML fundamentals**
 - The no-data-leakage rule (§10): a feature for day *t* may only use
@@ -203,8 +238,11 @@ reference.
   memorize individual training rows; `max_depth` and `min_samples_leaf`
   are direct dials against that risk
 - `feature_importances_` as a way to check *why* a model performs the
-  way it does, not just *how well* — used to notice the interest-rate
-  features barely mattered for a 1-day-ahead target
+  way it does, not just *how well* — used twice now: to notice the
+  interest-rate features barely mattered for a 1-day-ahead target, then
+  to confirm oil's daily returns mattered noticeably more than either
+  interest-rate feature, which lines up with how often each data source
+  actually changes day-to-day
 
 **Python, learned by debugging real errors**
 - Code after a `raise` never executes in that function
