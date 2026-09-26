@@ -6,6 +6,7 @@ venv/
 data/raw/**/*.csv
 data/raw/**/*.json
 data/processed/**/*.parquet
+data/processed/**/*.json
 models/*.joblib
 models/*.pkl
 node_modules/

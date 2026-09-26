@@ -15,7 +15,9 @@ use information up to and including row t.
 Usage:
     python ml/backtest.py
 """
+import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -34,6 +36,7 @@ from ml.models import (
 
 CURRENCY_PAIR = "MYR/IDR"
 FIRST_TEST_YEAR = 2022
+MODEL_PERFORMANCE_PATH = Path(__file__).resolve().parent.parent / "data" / "processed" / "model_performance.json"
 
 
 class NaiveModel:
@@ -192,6 +195,31 @@ def main():
     summary = results.groupby("model")[["mae", "rmse", "directional_accuracy", "n"]].apply(overall)
     print("\nOverall:")
     print(summary.to_string())
+
+    save_model_performance(summary)
+
+
+def save_model_performance(summary: pd.DataFrame) -> None:
+    """Cache the overall results so the API can serve them without re-running
+    the entire backtest (6 models x 5 years) on every request - it just
+    reads this file. Re-run ml/backtest.py to refresh it.
+    """
+    MODEL_PERFORMANCE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "currency_pair": CURRENCY_PAIR,
+        "models": [
+            {
+                "model": model,
+                "mae": None if pd.isna(row.mae) else round(float(row.mae), 4),
+                "rmse": None if pd.isna(row.rmse) else round(float(row.rmse), 4),
+                "directional_accuracy": None if pd.isna(row.directional_accuracy) else round(float(row.directional_accuracy), 4),
+            }
+            for model, row in summary.iterrows()
+        ],
+    }
+    MODEL_PERFORMANCE_PATH.write_text(json.dumps(payload, indent=2))
+    print(f"\nCached model performance -> {MODEL_PERFORMANCE_PATH}")
 
 
 if __name__ == "__main__":

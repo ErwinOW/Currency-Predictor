@@ -16,10 +16,11 @@ pip-system-certs
 scikit-learn
 xgboost
 
-# Backend (added when we get to the API step)
-# fastapi
-# uvicorn
-# pydantic
+# Backend
+fastapi
+uvicorn
+pydantic
 
 # Testing
 pytest
+httpx  # needed by FastAPI's TestClient

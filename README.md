@@ -25,12 +25,12 @@ data source (commodities, news sentiment) or XGBoost, then the API/UI.
 - [x] Walk-forward backtest harness + naive baselines (`python ml/backtest.py`)
 - [x] Moving average + linear regression (in `ml/models.py`)
 - [x] Random forest (in `ml/models.py`, `RF_FEATURE_COLUMNS` — first model to beat naive on every metric)
-- [x] Tests for feature engineering, backtest scoring, time alignment, random forest, and XGBoost (`pytest` — 18 passing)
+- [x] Tests for feature engineering, backtest scoring, time alignment, random forest, XGBoost, and the API (`pytest` — 21 of 24 passing, 3 are the API routes below still in progress)
 - [x] Commodity data (Brent + WTI via FRED, Malaysian palm oil via Yahoo Finance) + daily alignment (6 more features, 17,925 values)
 - [x] XGBoost (in `ml/models.py` — best model so far on MAE and RMSE)
 - [x] Live prediction generation (`python ml/generate_prediction.py` — trains on all data, writes to `predictions`, confidence + interval derived from real backtest history, not arbitrary numbers)
+- [~] FastAPI (`api/main.py` — `/currencies` and `/prediction/{pair}` done; `/historical`, `/indicators`, `/model-performance` in progress)
 - [ ] News-sentiment data (§4.9)
-- [ ] FastAPI
 - [ ] React dashboard
 - [ ] Automation (scheduler)
 
@@ -196,6 +196,18 @@ close, and writes a row to `predictions`. Per §14, the confidence value
 and prediction range are both derived from the model's actual walk-forward
 track record (see the docstring in `ml/generate_prediction.py`), not
 invented numbers.
+
+### 11. Run the API
+
+```bash
+uvicorn api.main:app --reload
+```
+
+Then open http://127.0.0.1:8000/docs for the interactive API docs, built
+automatically from the route type hints and `api/schemas.py`. Run
+`ingestion/fetch_exchange_rates.py`, `ml/generate_prediction.py`, and
+`ml/backtest.py` at least once first, since the routes read what those
+scripts produce.
 
 ## Project layout
 
