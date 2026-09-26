@@ -182,10 +182,13 @@ class XGBoostModel:
     name = "xgboost"
 
     def __init__(self):
-        raise NotImplementedError("Create self.model = xgb.XGBRegressor(...) here")
+        self.model = xgb.XGBRegressor(n_estimators=150, max_depth=1, random_state=42, learning_rate=0.1)
 
     def fit(self, train: pd.DataFrame) -> None:
-        raise NotImplementedError("Drop NaNs, compute target_return, fit self.model")
+        train = train.dropna(subset=RF_FEATURE_COLUMNS)
+        target_return = train["next_close"] / train["close"] - 1
+        self.model.fit(train[RF_FEATURE_COLUMNS], target_return)
 
     def predict(self, test: pd.DataFrame) -> np.ndarray:
-        raise NotImplementedError("Predict the return, convert back to a price")
+        predicted_return = self.model.predict(test[RF_FEATURE_COLUMNS])
+        return test["close"].to_numpy() * (1 + predicted_return)

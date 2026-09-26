@@ -25,9 +25,9 @@ data source (commodities, news sentiment) or XGBoost, then the API/UI.
 - [x] Walk-forward backtest harness + naive baselines (`python ml/backtest.py`)
 - [x] Moving average + linear regression (in `ml/models.py`)
 - [x] Random forest (in `ml/models.py`, `RF_FEATURE_COLUMNS` — first model to beat naive on every metric)
-- [x] Tests for feature engineering, backtest scoring, time alignment, and the random forest (`pytest` — 14 passing)
+- [x] Tests for feature engineering, backtest scoring, time alignment, random forest, and XGBoost (`pytest` — 18 passing)
 - [x] Commodity data (Brent + WTI via FRED, Malaysian palm oil via Yahoo Finance) + daily alignment (6 more features, 17,925 values)
-- [ ] Models: XGBoost
+- [x] XGBoost (in `ml/models.py` — best model so far on MAE and RMSE)
 - [ ] News-sentiment data (§4.9)
 - [ ] FastAPI
 - [ ] React dashboard
@@ -39,21 +39,30 @@ data source (commodities, news sentiment) or XGBoost, then the API/UI.
 |---|---|---|---|
 | Naive (tomorrow = today) | 10.11 | 13.78 | n/a |
 | Linear regression | 10.12 | 13.81 | 51.7% |
-| **Random forest** | **10.08** | **13.77** | **52.2%** |
+| Random forest | 10.08 | 13.77 | **52.2%** |
+| **XGBoost** | **10.07** | **13.76** | 52.0% |
 | Moving average (7-day) | 16.97 | 22.76 | 51.3% |
 | Naive momentum | 14.65 | 19.88 | 48.5% |
 
-Random forest is currently the best model, but only marginally ahead of
-just guessing "no change." Its `feature_importances_` show a clear split
-by *how often the underlying data actually changes*: oil (`brent_return_1d`,
-`wti_return_1d`, both ~7-8% importance) clearly outranks all three
-interest-rate features (~2% each combined ~4%) — oil trades continuously
-with real daily volatility, while OPR/BI rates only change a handful of
-times a year, so there's little new information in them for a
-1-day-ahead target. Daily FX moves are still close to a random walk
-overall; meaningfully beating that likely needs either a longer
-prediction horizon (interest rates would matter more there) or a data
-source with more day-to-day signal, like news sentiment.
+XGBoost is currently the best model on error (MAE/RMSE), random forest
+edges it slightly on direction — both only marginally ahead of just
+guessing "no change." Comparing the two models' `feature_importances_` is
+more informative than either number alone: XGBoost assigns **exactly
+zero** importance to all three interest-rate features (it never once
+splits on them), while random forest gave them small but nonzero weight.
+That difference comes from how each algorithm is built — boosting fits
+each new tree to what's still unexplained after the stronger features
+already did their work, so a feature with nothing left to add gets
+skipped entirely; a random forest's per-tree random feature sampling
+means even a weak feature gets picked in *some* trees by chance. The two
+models also disagree on palm oil: XGBoost ranks it 5th out of 14
+features, random forest ranks it near last — a concrete example of two
+model families extracting different signal from identical data.
+
+Daily FX is still close to a random walk overall; meaningfully beating
+that likely needs either a longer prediction horizon (interest rates
+would matter more there) or a data source with more day-to-day signal,
+like news sentiment.
 
 ## Setup
 
@@ -170,9 +179,9 @@ python ml/backtest.py
 ```
 
 Trains and walk-forward-tests every model (naive, moving average, linear
-regression, random forest) on the same folds and prints MAE/RMSE/
-directional accuracy per year and overall — see "Current model results"
-above for the latest numbers.
+regression, random forest, XGBoost) on the same folds and prints
+MAE/RMSE/directional accuracy per year and overall — see "Current model
+results" above for the latest numbers.
 
 ## Project layout
 
@@ -238,11 +247,19 @@ reference.
   memorize individual training rows; `max_depth` and `min_samples_leaf`
   are direct dials against that risk
 - `feature_importances_` as a way to check *why* a model performs the
-  way it does, not just *how well* — used twice now: to notice the
-  interest-rate features barely mattered for a 1-day-ahead target, then
-  to confirm oil's daily returns mattered noticeably more than either
-  interest-rate feature, which lines up with how often each data source
-  actually changes day-to-day
+  way it does, not just *how well* — used three times now: to notice the
+  interest-rate features barely mattered for a 1-day-ahead target, to
+  confirm oil's daily returns mattered noticeably more than either
+  interest-rate feature, and to compare random forest against XGBoost on
+  the identical feature set
+- Bagging vs. boosting: a random forest trains many trees independently
+  (each on a random subset) and averages them; XGBoost trains trees
+  sequentially, each one correcting the previous trees' errors. Made
+  concrete by comparing their `feature_importances_` side by side -
+  XGBoost gave three features exactly zero importance (never split on
+  them once its stronger features already covered that ground), while
+  random forest's per-tree random sampling gave every feature at least a
+  small, nonzero score by chance
 
 **Python, learned by debugging real errors**
 - Code after a `raise` never executes in that function

@@ -24,7 +24,13 @@ from sqlalchemy import text
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from db.connection import get_engine
-from ml.models import LinearRegressionModel, MovingAverageModel, RandomForestModel, add_derived_features
+from ml.models import (
+    LinearRegressionModel,
+    MovingAverageModel,
+    RandomForestModel,
+    XGBoostModel,
+    add_derived_features,
+)
 
 CURRENCY_PAIR = "MYR/IDR"
 FIRST_TEST_YEAR = 2022
@@ -132,6 +138,7 @@ def main():
                 MovingAverageModel(),
                 LinearRegressionModel(),
                 RandomForestModel(),
+                XGBoostModel(),
             )
         ],
         ignore_index=True,
