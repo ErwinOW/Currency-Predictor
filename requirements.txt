@@ -14,7 +14,7 @@ pip-system-certs
 
 # Machine learning
 scikit-learn
-# xgboost
+xgboost
 
 # Backend (added when we get to the API step)
 # fastapi

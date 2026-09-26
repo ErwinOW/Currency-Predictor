@@ -6,6 +6,7 @@ scores them on identical folds.
 """
 import numpy as np
 import pandas as pd
+import xgboost as xgb
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import make_pipeline
@@ -138,3 +139,53 @@ class RandomForestModel:
     def predict(self, test: pd.DataFrame) -> np.ndarray:
         predicted_return = self.model.predict(test[RF_FEATURE_COLUMNS])
         return test["close"].to_numpy() * (1 + predicted_return)
+
+
+class XGBoostModel:
+    """Predict next-day return using gradient boosting (§12 Model 5).
+
+    YOUR TURN, same three methods as RandomForestModel above - use it as
+    your reference, and reuse RF_FEATURE_COLUMNS (same feature set, no new
+    list needed - trees don't care about feature scale here either).
+
+    The one real difference from random forest: boosting builds trees
+    SEQUENTIALLY, each one correcting the previous trees' mistakes, instead
+    of averaging independent trees. That makes one new hyperparameter
+    relevant that random forest doesn't have:
+
+        learning_rate   how much each new tree is allowed to correct.
+                        Small (e.g. 0.05) = each tree nudges gently, needs
+                        more rounds, generally overfits less. Large (e.g.
+                        0.3) = corrects fast, more prone to chasing noise.
+                        Try 0.05-0.1 as a starting point.
+
+    What to fill in:
+
+    1. __init__: create self.model = xgb.XGBRegressor(...).
+       Docs: https://xgboost.readthedocs.io/en/stable/python/python_api.html#xgboost.XGBRegressor
+       Same parameters to choose as RandomForestModel (n_estimators,
+       max_depth, random_state) PLUS learning_rate. One tuning note:
+       because boosting compounds each tree's mistakes into the next,
+       max_depth is usually set SHALLOWER here than for a random forest
+       (e.g. 2-4 rather than 5) - a good thing to try both ways and
+       compare once it's running.
+
+    2. fit(self, train): identical shape to RandomForestModel.fit.
+
+    3. predict(self, test): identical shape to RandomForestModel.predict.
+
+    Compare self.model.feature_importances_ against RandomForestModel's -
+    worth checking whether boosting leans on the same features or finds
+    different ones useful.
+    """
+
+    name = "xgboost"
+
+    def __init__(self):
+        raise NotImplementedError("Create self.model = xgb.XGBRegressor(...) here")
+
+    def fit(self, train: pd.DataFrame) -> None:
+        raise NotImplementedError("Drop NaNs, compute target_return, fit self.model")
+
+    def predict(self, test: pd.DataFrame) -> np.ndarray:
+        raise NotImplementedError("Predict the return, convert back to a price")
