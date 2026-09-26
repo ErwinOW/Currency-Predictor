@@ -44,6 +44,11 @@ RF_FEATURE_COLUMNS = FEATURE_COLUMNS + [
     "brent_return_1d",
     "wti_return_1d",
     "palm_oil_return_1d",
+    # sentiment_score (GDELT average tone) is already a bounded, roughly
+    # stationary quantity - not article_count, which could structurally
+    # grow over the years as global news coverage volume grows, the same
+    # "raw level drifts over time" problem as a raw price.
+    "sentiment_score",
 ]
 
 

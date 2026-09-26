@@ -16,8 +16,8 @@ intent. Not a trading system.
 End-to-end and working: data pipeline (ingestion → PostgreSQL → features),
 a full model ladder with walk-forward backtesting, a live prediction
 generator, a FastAPI backend, and a React dashboard consuming it. What's
-left is optional breadth (news-sentiment data) and productionizing
-(scheduled automation, deployment) - see the checklist below.
+left is productionizing (scheduled automation, deployment) - see the
+checklist below.
 
 - [x] Project scaffold
 - [x] PostgreSQL running (Docker Compose)
@@ -28,11 +28,11 @@ left is optional breadth (news-sentiment data) and productionizing
 - [x] Moving average + linear regression (in `ml/models.py`)
 - [x] Random forest (in `ml/models.py`, `RF_FEATURE_COLUMNS` — first model to beat naive on every metric)
 - [x] Tests for feature engineering, backtest scoring, time alignment, random forest, XGBoost, and the API (`pytest` — 24 passing)
+- [x] News-sentiment data (GDELT bulk files, weekly samples 2015-present) + daily alignment (2 more features, 5,940 values)
 - [x] Commodity data (Brent + WTI via FRED, Malaysian palm oil via Yahoo Finance) + daily alignment (6 more features, 17,925 values)
 - [x] XGBoost (in `ml/models.py` — best model so far on MAE and RMSE)
 - [x] Live prediction generation (`python ml/generate_prediction.py` — trains on all data, writes to `predictions`, confidence + interval derived from real backtest history, not arbitrary numbers)
 - [x] FastAPI (`api/main.py` — `/currencies`, `/prediction/{pair}`, `/historical/{pair}`, `/indicators/{pair}`, `/model-performance`)
-- [ ] News-sentiment data (§4.9)
 - [x] React dashboard (`frontend/` — Vite + React + Tailwind + Chart.js; Currency Overview, Historical Chart, Economic Factors, Model Performance)
 - [ ] Automation (scheduler)
 
@@ -40,27 +40,35 @@ left is optional breadth (news-sentiment data) and productionizing
 
 | Model | MAE (IDR) | RMSE (IDR) | Directional accuracy |
 |---|---|---|---|
-| Naive (tomorrow = today) | 10.11 | 13.78 | n/a |
-| Linear regression | 10.12 | 13.81 | 51.7% |
-| Random forest | 10.08 | 13.77 | **52.2%** |
-| **XGBoost** | **10.07** | **13.76** | 52.0% |
-| Moving average (7-day) | 16.97 | 22.76 | 51.3% |
-| Naive momentum | 14.65 | 19.88 | 48.5% |
+| Naive (tomorrow = today) | 10.17 | 13.88 | n/a |
+| Linear regression | 10.19 | 13.91 | 51.6% |
+| **XGBoost** | **10.15** | **13.86** | 52.6% |
+| Random forest | 10.15 | 13.86 | **52.7%** |
+| Moving average (7-day) | 17.13 | 22.96 | 51.2% |
+| Naive momentum | 14.72 | 19.99 | 48.6% |
 
-XGBoost is currently the best model on error (MAE/RMSE), random forest
-edges it slightly on direction — both only marginally ahead of just
-guessing "no change." Comparing the two models' `feature_importances_` is
-more informative than either number alone: XGBoost assigns **exactly
-zero** importance to all three interest-rate features (it never once
-splits on them), while random forest gave them small but nonzero weight.
-That difference comes from how each algorithm is built — boosting fits
-each new tree to what's still unexplained after the stronger features
-already did their work, so a feature with nothing left to add gets
-skipped entirely; a random forest's per-tree random feature sampling
-means even a weak feature gets picked in *some* trees by chance. The two
-models also disagree on palm oil: XGBoost ranks it 5th out of 14
-features, random forest ranks it near last — a concrete example of two
+XGBoost and random forest are essentially tied for best, both only
+marginally ahead of just guessing "no change." Comparing the two models'
+`feature_importances_` is more informative than either number alone:
+XGBoost assigns **exactly zero** importance to all three interest-rate
+features (it never once splits on them), while random forest gave them
+small but nonzero weight. That difference comes from how each algorithm
+is built — boosting fits each new tree to what's still unexplained after
+the stronger features already did their work, so a feature with nothing
+left to add gets skipped entirely; a random forest's per-tree random
+feature sampling means even a weak feature gets picked in *some* trees by
+chance. The two models also disagree on palm oil: XGBoost ranks it
+mid-table, random forest ranks it near last — a concrete example of two
 model families extracting different signal from identical data.
+
+News sentiment (§4.9) earns a real, if modest, place in both models:
+XGBoost ranks it above every interest-rate feature (~6.6% importance vs
+~2% combined for all three rate features), landing just behind the price
+and commodity features. Random forest ranks it lower but still above two
+of the three interest-rate features. That's a genuinely interesting result given sentiment here is
+*weekly*-resolution (see the setup step below for why), coarser than the
+daily commodity data — it still carries more signal than data that only
+changes a handful of times a year.
 
 Daily FX is still close to a random walk overall; meaningfully beating
 that likely needs either a longer prediction horizon (interest rates
@@ -164,7 +172,27 @@ data quirks it handles: WTI's genuine negative price in April 2020, and
 Yahoo silently returning monthly-resolution data for long date ranges
 unless you pass explicit start/end timestamps.
 
-### 8. Run the tests
+### 8. Fetch news-sentiment data and align it
+
+No API key needed, but this one takes a while — roughly 25-30 minutes,
+since it downloads ~600 files sequentially.
+
+```bash
+python ingestion/fetch_news_sentiment.py --start 2015-02-19
+python etl/sentiment_features.py
+```
+
+Pulls from GDELT's bulk Global Knowledge Graph files (not its search API —
+see the docstring in `ingestion/fetch_news_sentiment.py` for why: the
+search API only covers 2017-present and was unusably rate-limited from
+this environment, while the bulk files are unthrottled static downloads
+covering full history back to 2015). Each bulk file is a 15-minute,
+~10 MB dump of ALL global news, so this samples just **one file per week**
+rather than all ~96/day — a real, explicit tradeoff documented in the
+script: this produces a *weekly*-resolution feature, not a true daily
+aggregate, forward-filled to daily the same way as interest rates.
+
+### 9. Run the tests
 
 ```bash
 pytest
@@ -175,7 +203,7 @@ Checks the feature math against hand-calculated examples (e.g. that a
 rule actually holds (changing tomorrow's price must not change today's
 features), plus the backtest scoring and random-forest functions.
 
-### 9. Run the model backtest
+### 10. Run the model backtest
 
 ```bash
 python ml/backtest.py
@@ -186,7 +214,7 @@ regression, random forest, XGBoost) on the same folds and prints
 MAE/RMSE/directional accuracy per year and overall — see "Current model
 results" above for the latest numbers.
 
-### 10. Generate today's live prediction
+### 11. Generate today's live prediction
 
 ```bash
 python ml/generate_prediction.py
@@ -199,7 +227,7 @@ and prediction range are both derived from the model's actual walk-forward
 track record (see the docstring in `ml/generate_prediction.py`), not
 invented numbers.
 
-### 11. Run the API
+### 12. Run the API
 
 ```bash
 uvicorn api.main:app --reload
@@ -211,7 +239,7 @@ automatically from the route type hints and `api/schemas.py`. Run
 `ml/backtest.py` at least once first, since the routes read what those
 scripts produce.
 
-### 12. Run the frontend
+### 13. Run the frontend
 
 Requires [Node.js](https://nodejs.org) (LTS) and the API running (step 11).
 
@@ -270,6 +298,19 @@ reference.
   crude genuinely went negative in April 2020 (a real, famous event, not
   an error) — a single positive-only sanity check across all commodities
   would have silently discarded real data
+- A "free" API can have two very different faces: GDELT's own search API
+  (rate-limited hard enough from this environment to be unusable no
+  matter how long between requests) vs. its bulk static files (fully
+  reliable, unthrottled, ~10 MB per 15-minute snapshot). When one path to
+  a data source is a wall, it's worth checking whether the same provider
+  exposes the data a different way before giving up or switching sources
+  entirely
+- Explicit, honest sampling tradeoffs beat silently doing less than
+  advertised: downloading *every* 15-minute GDELT file back to 2015 would
+  mean ~400,000 files (multiple terabytes) — not practical. Sampling one
+  file per week instead is a real resolution downgrade (weekly, not
+  daily), and that's stated plainly in the code and docs rather than
+  presented as equivalent to a true daily aggregate
 
 **Time-series / ML fundamentals**
 - The no-data-leakage rule (§10): a feature for day *t* may only use

@@ -32,6 +32,7 @@ INDICATOR_FEATURES = {
     "brent_price": "Brent Crude",
     "wti_price": "WTI Crude",
     "palm_oil_price": "Palm Oil",
+    "sentiment_score": "News Sentiment (GDELT)",
 }
 
 
